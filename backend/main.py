@@ -1,5 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from database import engine, Base
+from routers import users, coach
+import models
+
+# Create database tables
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="AI Chess Performance Analyzer API",
@@ -19,6 +25,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(users.router)
+app.include_router(coach.router)
 
 @app.get("/")
 def read_root():
