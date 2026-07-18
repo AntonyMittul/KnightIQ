@@ -12,16 +12,19 @@ import pattern_detector
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
-def fetch_and_save_games(db: Session, user_id: str, chess_username: str):
-    archives = chess_client.get_player_archives(chess_username)
-    if not archives:
-        return
-    
-    # Process all historical archives for a complete game history
-    for archive_url in archives:
-        games_data = chess_client.get_games_from_archive(archive_url)
-        for game_data in games_data:
-            existing = db.query(models.Game).filter(models.Game.url == game_data.get("url")).first()
+def fetch_and_save_games(user_id: str, chess_username: str):
+    from database import SessionLocal
+    db = SessionLocal()
+    try:
+        archives = chess_client.get_player_archives(chess_username)
+        if not archives:
+            return
+        
+        # Process all historical archives for a complete game history
+        for archive_url in archives:
+            games_data = chess_client.get_games_from_archive(archive_url)
+            for game_data in games_data:
+                existing = db.query(models.Game).filter(models.Game.url == game_data.get("url")).first()
             if not existing:
                 white = game_data.get("white", {}).get("username")
                 black = game_data.get("black", {}).get("username")
@@ -65,6 +68,8 @@ def fetch_and_save_games(db: Session, user_id: str, chess_username: str):
                 )
                 db.add(new_game)
         db.commit()
+    finally:
+        db.close()
 
 @router.post("/login", response_model=schemas.UserResponse)
 def login_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
@@ -90,7 +95,7 @@ def sync_chess_account(email: str, chess_username: str, background_tasks: Backgr
     db.commit()
     
     # Run fetch in background
-    background_tasks.add_task(fetch_and_save_games, db, user.id, chess_username)
+    background_tasks.add_task(fetch_and_save_games, user.id, chess_username)
     return schemas.SyncResponse(message=f"Syncing started for {chess_username}", games_added=0)
 
 @router.get("/{email}/games")
