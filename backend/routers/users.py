@@ -125,16 +125,19 @@ def analyze_games(email: str, background_tasks: BackgroundTasks, db: Session = D
             games = db_sess.query(models.Game).filter(models.Game.user_id == user_id, models.Game.accuracy == None).order_by(models.Game.end_time.desc()).all()
             for game in games:
                 if game.moves_list:
-                    blunders, mistakes, inaccuracies, accuracy, evals_json = analyzer.evaluate_game(
-                        game.moves_list, username, game.white
-                    )
-                    game.blunders = blunders
-                    game.mistakes = mistakes
-                    game.inaccuracies = inaccuracies
-                    game.accuracy = accuracy
-                    game.evaluations_list = evals_json
-                    db_sess.commit()
-                    print(f"Analyzed game: {game.white} vs {game.black} | Accuracy: {accuracy}%")
+                    try:
+                        blunders, mistakes, inaccuracies, accuracy, evals_json = analyzer.evaluate_game(
+                            game.moves_list, username, game.white
+                        )
+                        game.blunders = blunders
+                        game.mistakes = mistakes
+                        game.inaccuracies = inaccuracies
+                        game.accuracy = accuracy
+                        game.evaluations_list = evals_json
+                        db_sess.commit()
+                        print(f"Analyzed game: {game.white} vs {game.black} | Accuracy: {accuracy}%")
+                    except Exception as e:
+                        print(f"Failed to analyze game {game.id}: {e}")
         finally:
             db_sess.close()
                 
@@ -213,15 +216,18 @@ def refresh_live_games(email: str, background_tasks: BackgroundTasks, db: Sessio
                 games = db_sess.query(models.Game).filter(models.Game.user_id == user_id, models.Game.accuracy == None).order_by(models.Game.end_time.desc()).all()
                 for game in games:
                     if game.moves_list:
-                        blunders, mistakes, inaccuracies, accuracy, evals_json = analyzer.evaluate_game(
-                            game.moves_list, username, game.white
-                        )
-                        game.blunders = blunders
-                        game.mistakes = mistakes
-                        game.inaccuracies = inaccuracies
-                        game.accuracy = accuracy
-                        game.evaluations_list = evals_json
-                        db_sess.commit()
+                        try:
+                            blunders, mistakes, inaccuracies, accuracy, evals_json = analyzer.evaluate_game(
+                                game.moves_list, username, game.white
+                            )
+                            game.blunders = blunders
+                            game.mistakes = mistakes
+                            game.inaccuracies = inaccuracies
+                            game.accuracy = accuracy
+                            game.evaluations_list = evals_json
+                            db_sess.commit()
+                        except Exception as e:
+                            print(f"Failed to analyze game {game.id}: {e}")
             finally:
                 db_sess.close()
                 

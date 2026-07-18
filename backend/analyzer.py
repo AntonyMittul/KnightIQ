@@ -40,74 +40,81 @@ def evaluate_game(moves_list_json, username, white_player):
     evaluations = []
     
     board = chess.Board()
-    engine = chess.engine.SimpleEngine.popen_uci(engine_path)
-    # Give the engine a little bit of power for local processing
-    engine.configure({"Threads": 2, "Hash": 128})
-    
-    is_user_white = (white_player == username)
-    
-    # Evaluate starting position
-    info = engine.analyse(board, chess.engine.Limit(time=0.1))
-    score = info["score"].white()
-    prev_eval = 10000 if score.is_mate() and score.mate() > 0 else (-10000 if score.is_mate() else score.score())
-    
-    best_move_obj = info.get("pv", [None])[0]
-    best_move_san = board.san(best_move_obj) if best_move_obj else None
-    
-    for i, move_san in enumerate(moves):
-        is_white_turn = board.turn
+    try:
+        engine = chess.engine.SimpleEngine.popen_uci(engine_path)
+    except Exception as e:
+        print(f"Failed to spawn Stockfish: {e}")
+        return 0, 0, 0, 0.0, "[]"
         
-        try:
-            move = board.parse_san(move_san)
-        except ValueError:
-            break
-            
-        board.push(move)
+    try:
+        # Give the engine a little bit of power for local processing (lowered for Render free tier limits)
+        engine.configure({"Threads": 1, "Hash": 32})
         
-        # Analyse with a 0.1s time limit per move to keep it fast
-        info = engine.analyse(board, chess.engine.Limit(time=0.1)) 
+        is_user_white = (white_player == username)
+        
+        # Evaluate starting position
+        info = engine.analyse(board, chess.engine.Limit(time=0.1))
         score = info["score"].white()
+        prev_eval = 10000 if score.is_mate() and score.mate() > 0 else (-10000 if score.is_mate() else score.score())
         
-        if score.is_mate():
-            cp_score = 10000 if score.mate() > 0 else -10000
-        else:
-            cp_score = score.score()
+        best_move_obj = info.get("pv", [None])[0]
+        best_move_san = board.san(best_move_obj) if best_move_obj else None
+        
+        for i, move_san in enumerate(moves):
+            is_white_turn = board.turn
             
-        user_just_played = (is_user_white and is_white_turn) or (not is_user_white and not is_white_turn)
+            try:
+                move = board.parse_san(move_san)
+            except ValueError:
+                break
+            
+            board.push(move)
         
-        move_cpl = 0
-        if user_just_played:
-            if is_user_white:
-                move_cpl = cp_score - prev_eval
+            # Analyse with a 0.1s time limit per move to keep it fast
+            info = engine.analyse(board, chess.engine.Limit(time=0.1)) 
+            score = info["score"].white()
+        
+            if score.is_mate():
+                cp_score = 10000 if score.mate() > 0 else -10000
             else:
-                move_cpl = prev_eval - cp_score
+                cp_score = score.score()
+            
+            user_just_played = (is_user_white and is_white_turn) or (not is_user_white and not is_white_turn)
+        
+            move_cpl = 0
+            if user_just_played:
+                if is_user_white:
+                    move_cpl = cp_score - prev_eval
+                else:
+                    move_cpl = prev_eval - cp_score
                 
-            # Cap CPL to avoid massive mate blunders throwing off the entire average instantly
-            move_cpl = max(-1000, min(0, move_cpl))
-            user_cpl_sum += abs(move_cpl)
+                # Cap CPL to avoid massive mate blunders throwing off the entire average instantly
+                move_cpl = max(-1000, min(0, move_cpl))
+                user_cpl_sum += abs(move_cpl)
                 
-            # CPL is usually negative if you made a bad move
-            if move_cpl <= -300:
-                blunders += 1
-            elif move_cpl <= -100:
-                mistakes += 1
-            elif move_cpl <= -50:
-                inaccuracies += 1
+                # CPL is usually negative if you made a bad move
+                if move_cpl <= -300:
+                    blunders += 1
+                elif move_cpl <= -100:
+                    mistakes += 1
+                elif move_cpl <= -50:
+                    inaccuracies += 1
                 
-        # Store detailed evaluation per the Phase 4 requirements
-        evaluations.append({
-            "played_move": move_san,
-            "best_move": best_move_san,
-            "eval": cp_score / 100.0,
-            "cpl": move_cpl if user_just_played else None
-        })
+            # Store detailed evaluation per the Phase 4 requirements
+            evaluations.append({
+                "played_move": move_san,
+                "best_move": best_move_san,
+                "eval": cp_score / 100.0,
+                "cpl": move_cpl if user_just_played else None
+            })
         
         # Set up variables for the next turn
         prev_eval = cp_score
         best_move_obj = info.get("pv", [None])[0]
         best_move_san = board.san(best_move_obj) if best_move_obj else None
-        
-    engine.quit()
+            
+    finally:
+        engine.quit()
     
     # Calculate mathematically sound accuracy based on Average Centipawn Loss (ACPL)
     import math
