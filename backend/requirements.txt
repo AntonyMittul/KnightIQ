@@ -5,3 +5,4 @@ python-chess
 google-generativeai
 pydantic
 requests
+python-dotenv
