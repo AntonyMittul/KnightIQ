@@ -9,6 +9,9 @@ if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 def get_engine_path():
+    if sys.platform != 'win32':
+        return "stockfish" # Globally available via apt-get in Docker
+    
     base_dir = os.path.dirname(__file__)
     # For Windows:
     return os.path.join(base_dir, "bin", "stockfish", "stockfish.exe")
