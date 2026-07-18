@@ -10,8 +10,11 @@ if sys.platform == 'win32':
 
 def get_engine_path():
     if sys.platform != 'win32':
-        return "stockfish" # Globally available via apt-get in Docker
-    
+        import shutil
+        if shutil.which("stockfish"): return shutil.which("stockfish")
+        if os.path.exists("/usr/games/stockfish"): return "/usr/games/stockfish"
+        if os.path.exists("/usr/bin/stockfish"): return "/usr/bin/stockfish"
+        return "stockfish"
     base_dir = os.path.dirname(__file__)
     # For Windows:
     return os.path.join(base_dir, "bin", "stockfish", "stockfish.exe")
